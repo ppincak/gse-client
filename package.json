@@ -1,0 +1,8 @@
+{ "name" : "gse-client",
+  "version" : "0.1.0",
+  "description" : "Go websocket",
+  "dependencies": {
+    "gulp": "latest",
+    "gulp-babel": "latest"
+  }
+}
