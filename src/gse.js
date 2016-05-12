@@ -12,6 +12,7 @@ class Connection {
         this._open = false;
         this._namespaces = new Map();
         this._namespaces.set("/", new Namespace(this, "/"));
+        this._queue = [];
     }
 
     root() {
@@ -25,16 +26,13 @@ class Connection {
     createNamespace(namespaceName) {
         let namespace = this._namespaces.get(namespaceName);
         if(!namespace) {
+            namespace = new Namespace(this, namespaceName);
+            this._namespaces.set(namespaceName, namespace);
             if(this._open) {
-                namespace = new Namespace(this, namespaceName);
-                this._namespaces.set(namespaceName, namespace);
-                this.ws.send(
-                    JSON.stringify(
-                        {
-                            type: Connect,
-                            endpoint: namespaceName
-                        }
-                    )
+                this._connectNamespace(namespace)
+            } else {
+                this._queue.push(
+                    namespace
                 );
             }
         }
@@ -54,6 +52,25 @@ class Connection {
                 )
             );
         }
+    }
+
+    connectCallback() {
+        for(var namespace of this._queue) {
+            this._connectNamespace(namespace);
+        }
+
+        this._queue = [];
+    }
+
+    _connectNamespace(namespace) {
+        this.ws.send(
+            JSON.stringify(
+                {
+                    type: Connect,
+                    endpoint: namespace.name
+                }
+            )
+        );
     }
 
     get url() {
@@ -143,6 +160,7 @@ function wrapConnection(connection) {
     function onOpen() {
         connection.open = true;
         connection.root().connected = true;
+        connection.connectCallback();
         onConnect(connection.root());
     }
 
@@ -215,6 +233,7 @@ function wrapConnection(connection) {
     }
 }
 
+// TODO solve problem with
 var gse = (() => {
     var connections = new Map();
 
