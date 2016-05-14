@@ -20,7 +20,8 @@ var gse = function () {
             this._open = false;
             this._namespaces = new Map();
             this._namespaces.set("/", new Namespace(this, "/"));
-            this._queue = [];
+            this._nqueue = [];
+            this._squeue = [];
         }
 
         _createClass(Connection, [{
@@ -43,7 +44,7 @@ var gse = function () {
                     if (this._open) {
                         this._connectNamespace(namespace);
                     } else {
-                        this._queue.push(namespace);
+                        this._nqueue.push(namespace);
                     }
                 }
                 return namespace;
@@ -51,13 +52,17 @@ var gse = function () {
         }, {
             key: "emit",
             value: function emit(namespace, event, data) {
+                var message = JSON.stringify({
+                    type: EventPType,
+                    name: event,
+                    data: data,
+                    endpoint: namespace.name
+                });
+
                 if (this._open && namespace.connected) {
-                    this._ws.send(JSON.stringify({
-                        type: EventPType,
-                        name: event,
-                        data: data,
-                        endpoint: namespace.name
-                    }));
+                    this._ws.send(message);
+                } else {
+                    this._squeue.push(message);
                 }
             }
         }, {
@@ -68,7 +73,7 @@ var gse = function () {
                 var _iteratorError = undefined;
 
                 try {
-                    for (var _iterator = this._queue[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+                    for (var _iterator = this._nqueue[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
                         var namespace = _step.value;
 
                         this._connectNamespace(namespace);
@@ -88,7 +93,34 @@ var gse = function () {
                     }
                 }
 
-                this._queue = [];
+                this._nqueue = [];
+
+                var _iteratorNormalCompletion2 = true;
+                var _didIteratorError2 = false;
+                var _iteratorError2 = undefined;
+
+                try {
+                    for (var _iterator2 = this._squeue[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+                        var message = _step2.value;
+
+                        this._ws.send(message);
+                    }
+                } catch (err) {
+                    _didIteratorError2 = true;
+                    _iteratorError2 = err;
+                } finally {
+                    try {
+                        if (!_iteratorNormalCompletion2 && _iterator2.return) {
+                            _iterator2.return();
+                        }
+                    } finally {
+                        if (_didIteratorError2) {
+                            throw _iteratorError2;
+                        }
+                    }
+                }
+
+                this._squeue = [];
             }
         }, {
             key: "_connectNamespace",
@@ -255,41 +287,12 @@ var gse = function () {
         function onConnect(namespace) {
             namespace.connected = true;
 
-            var _iteratorNormalCompletion2 = true;
-            var _didIteratorError2 = false;
-            var _iteratorError2 = undefined;
-
-            try {
-                for (var _iterator2 = namespace.cCallbacks[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
-                    var callback = _step2.value;
-
-                    callback();
-                }
-            } catch (err) {
-                _didIteratorError2 = true;
-                _iteratorError2 = err;
-            } finally {
-                try {
-                    if (!_iteratorNormalCompletion2 && _iterator2.return) {
-                        _iterator2.return();
-                    }
-                } finally {
-                    if (_didIteratorError2) {
-                        throw _iteratorError2;
-                    }
-                }
-            }
-        }
-
-        function onDisconnect(namespace) {
-            namespace.connected = false;
-
             var _iteratorNormalCompletion3 = true;
             var _didIteratorError3 = false;
             var _iteratorError3 = undefined;
 
             try {
-                for (var _iterator3 = namespace.dCallbacks[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
+                for (var _iterator3 = namespace.cCallbacks[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
                     var callback = _step3.value;
 
                     callback();
@@ -310,20 +313,18 @@ var gse = function () {
             }
         }
 
-        function onEvent(namespace, packet) {
-            var listeners = namespace.getEventListeners(packet.name);
-            if (!listeners) {
-                return;
-            }
+        function onDisconnect(namespace) {
+            namespace.connected = false;
+
             var _iteratorNormalCompletion4 = true;
             var _didIteratorError4 = false;
             var _iteratorError4 = undefined;
 
             try {
-                for (var _iterator4 = listeners[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
+                for (var _iterator4 = namespace.dCallbacks[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
                     var callback = _step4.value;
 
-                    callback(packet.data);
+                    callback();
                 }
             } catch (err) {
                 _didIteratorError4 = true;
@@ -336,6 +337,37 @@ var gse = function () {
                 } finally {
                     if (_didIteratorError4) {
                         throw _iteratorError4;
+                    }
+                }
+            }
+        }
+
+        function onEvent(namespace, packet) {
+            var listeners = namespace.getEventListeners(packet.name);
+            if (!listeners) {
+                return;
+            }
+            var _iteratorNormalCompletion5 = true;
+            var _didIteratorError5 = false;
+            var _iteratorError5 = undefined;
+
+            try {
+                for (var _iterator5 = listeners[Symbol.iterator](), _step5; !(_iteratorNormalCompletion5 = (_step5 = _iterator5.next()).done); _iteratorNormalCompletion5 = true) {
+                    var callback = _step5.value;
+
+                    callback(packet.data);
+                }
+            } catch (err) {
+                _didIteratorError5 = true;
+                _iteratorError5 = err;
+            } finally {
+                try {
+                    if (!_iteratorNormalCompletion5 && _iterator5.return) {
+                        _iterator5.return();
+                    }
+                } finally {
+                    if (_didIteratorError5) {
+                        throw _iteratorError5;
                     }
                 }
             }

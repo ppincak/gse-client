@@ -13,7 +13,8 @@ var gse = (() => {
             this._open = false;
             this._namespaces = new Map();
             this._namespaces.set("/", new Namespace(this, "/"));
-            this._queue = [];
+            this._nqueue = [];
+            this._squeue = [];
         }
 
         root() {
@@ -32,7 +33,7 @@ var gse = (() => {
                 if(this._open) {
                     this._connectNamespace(namespace)
                 } else {
-                    this._queue.push(
+                    this._nqueue.push(
                         namespace
                     );
                 }
@@ -41,26 +42,32 @@ var gse = (() => {
         }
 
         emit(namespace, event, data) {
+            let message = JSON.stringify(
+                {
+                    type: EventPType,
+                    name: event,
+                    data: data,
+                    endpoint: namespace.name
+                }
+            );
+
             if(this._open && namespace.connected) {
-                this._ws.send(
-                    JSON.stringify(
-                        {
-                            type: EventPType,
-                            name: event,
-                            data: data,
-                            endpoint: namespace.name
-                        }
-                    )
-                );
+                this._ws.send(message);
+            } else {
+                this._squeue.push(message);
             }
         }
 
         connectCallback() {
-            for(var namespace of this._queue) {
+            for(var namespace of this._nqueue) {
                 this._connectNamespace(namespace);
             }
+            this._nqueue = [];
 
-            this._queue = [];
+            for(var message of this._squeue) {
+                this._ws.send(message);
+            }
+            this._squeue = [];
         }
 
         _connectNamespace(namespace) {
