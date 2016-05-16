@@ -4,6 +4,7 @@ var _createClass = function () { function defineProperties(target, props) { for 
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
+// TODO solve cors
 var gse = function () {
     var ConnectPType = 0;
     var Disconnect = 1;
@@ -51,18 +52,24 @@ var gse = function () {
             }
         }, {
             key: "emit",
-            value: function emit(namespace, event, data) {
-                var message = JSON.stringify({
+            value: function emit(namespace, event, data, id) {
+                var message = {
                     type: EventPType,
                     name: event,
                     data: data,
                     endpoint: namespace.name
-                });
+                };
+
+                if (id) {
+                    message.id = id;
+                }
+
+                var strMessage = JSON.stringify(message);
 
                 if (this._open && namespace.connected) {
-                    this._ws.send(message);
+                    this._ws.send(strMessage);
                 } else {
-                    this._squeue.push(message);
+                    this._squeue.push(strMessage);
                 }
             }
         }, {
@@ -170,6 +177,7 @@ var gse = function () {
             this._cCallbacks = [];
             this._dCallbacks = [];
             this._eventListeners = new Map();
+            this._ackCallbacks = new Map();
         }
 
         _createClass(Namespace, [{
@@ -194,14 +202,28 @@ var gse = function () {
             }
         }, {
             key: "emit",
-            value: function emit(event, data) {
-                this._connection.emit(this, event, data);
+            value: function emit(event, data, ackCallback) {
+                var uuid = void 0;
+                if (ackCallback) {
+                    uuid = Namespace.generatedUUID();
+                    this._ackCallbacks.set(uuid, ackCallback);
+                }
+
+                this._connection.emit(this, event, data, uuid);
+            }
+        }, {
+            key: "getAckCallback",
+            value: function getAckCallback(id) {
+                return this._ackCallbacks.get(id);
             }
         }, {
             key: "getEventListeners",
             value: function getEventListeners(event) {
                 return this._eventListeners.get(event);
             }
+
+            // TODO make more complex
+
         }, {
             key: "connected",
             get: function get() {
@@ -224,6 +246,11 @@ var gse = function () {
             key: "dCallbacks",
             get: function get() {
                 return this._dCallbacks;
+            }
+        }], [{
+            key: "generatedUUID",
+            value: function generatedUUID() {
+                return new Date().getTime();
             }
         }]);
 
@@ -276,9 +303,10 @@ var gse = function () {
                 case EventPType:
                     onEvent(namespace, packet);
                     break;
-                // TODO implement in the future
                 case AckPType:
+                    onAck(namespace, packet);
                     break;
+                // TODO implement in the future
                 case ErrorPType:
                     break;
             }
@@ -372,8 +400,16 @@ var gse = function () {
                 }
             }
         }
+
+        function onAck(namespace, packet) {
+            var callback = namespace.getAckCallback(packet.id);
+            if (callback) {
+                callback(packet.data);
+            }
+        }
     }
 
+    // map of all current connections
     var connections = new Map();
 
     return {

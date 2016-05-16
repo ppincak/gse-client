@@ -43,23 +43,23 @@ var gse = (() => {
         }
 
         emit(namespace, event, data, id) {
-            let message = JSON.stringify(
-                {
-                    type: EventPType,
-                    name: event,
-                    data: data,
-                    endpoint: namespace.name
-                }
-            );
+            let message =  {
+                type: EventPType,
+                name: event,
+                data: data,
+                endpoint: namespace.name
+            };
 
             if(id) {
                 message.id = id;
             }
 
+            let strMessage = JSON.stringify(message);
+
             if(this._open && namespace.connected) {
-                this._ws.send(message);
+                this._ws.send(strMessage);
             } else {
-                this._squeue.push(message);
+                this._squeue.push(strMessage);
             }
         }
 
