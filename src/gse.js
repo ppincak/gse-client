@@ -1,3 +1,4 @@
+// TODO solve cors
 var gse = (() => {
     const ConnectPType = 0;
     const Disconnect = 1;
@@ -41,7 +42,7 @@ var gse = (() => {
             return namespace;
         }
 
-        emit(namespace, event, data) {
+        emit(namespace, event, data, id) {
             let message = JSON.stringify(
                 {
                     type: EventPType,
@@ -50,6 +51,10 @@ var gse = (() => {
                     endpoint: namespace.name
                 }
             );
+
+            if(id) {
+                message.id = id;
+            }
 
             if(this._open && namespace.connected) {
                 this._ws.send(message);
@@ -112,6 +117,7 @@ var gse = (() => {
             this._cCallbacks = [];
             this._dCallbacks = [];
             this._eventListeners = new Map();
+            this._ackCallbacks = new Map();
         }
 
         onConnect(callback) {
@@ -131,12 +137,27 @@ var gse = (() => {
             listeners.push(callback);
         }
 
-        emit(event, data) {
-            this._connection.emit(this, event, data);
+        emit(event, data, ackCallback) {
+            let uuid;
+            if(ackCallback) {
+                uuid = Namespace.generatedUUID();
+                this._ackCallbacks.set(uuid, ackCallback);
+            }
+
+            this._connection.emit(this, event, data, uuid);
+        }
+
+        getAckCallback(id) {
+            return this._ackCallbacks.get(id);
         }
 
         getEventListeners(event) {
             return this._eventListeners.get(event);
+        }
+
+        // TODO make more complex
+        static generatedUUID() {
+            return new Date().getTime();
         }
 
         get connected() {
@@ -206,9 +227,10 @@ var gse = (() => {
                 case EventPType:
                     onEvent(namespace, packet);
                     break;
-                // TODO implement in the future
                 case AckPType:
+                    onAck(namespace, packet);
                     break;
+                // TODO implement in the future
                 case ErrorPType:
                     break;
             }
@@ -239,8 +261,16 @@ var gse = (() => {
                 callback(packet.data);
             }
         }
+
+        function onAck(namespace, packet) {
+            let callback = namespace.getAckCallback(packet.id);
+            if(callback) {
+                callback(packet.data);
+            }
+        }
     }
 
+    // map of all current connections
     var connections = new Map();
 
     return {
