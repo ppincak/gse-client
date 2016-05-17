@@ -44,7 +44,6 @@ var gse = (() => {
 
         emit(namespace, event, data, id) {
             let message =  {
-                type: EventPType,
                 name: event,
                 data: data,
                 endpoint: namespace.name
@@ -52,6 +51,9 @@ var gse = (() => {
 
             if(id) {
                 message.id = id;
+                message.type = AckPType;
+            } else {
+                message.type = EventPType;
             }
 
             let strMessage = JSON.stringify(message);
