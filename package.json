@@ -4,7 +4,8 @@
   "dependencies": {
     "gulp": "^3.8.11",
     "gulp-babel": "*",
-    "gulp-concat": "*",
+    "gulp-uglify": "*",
+    "gulp-rename": "*",
     "babel-preset-es2015": "*"
   }
 }

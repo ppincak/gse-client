@@ -210,6 +210,9 @@ var gse = (() => {
 
             try {
                 packet = JSON.parse(msgEvt.data);
+                if(!packet) {
+                    return;
+                }
             } catch(e) {
                 return;
             }
@@ -232,7 +235,6 @@ var gse = (() => {
                 case AckPType:
                     onAck(namespace, packet);
                     break;
-                // TODO implement in the future
                 case ErrorPType:
                     break;
             }
